@@ -4,7 +4,23 @@ const fields={customer:['被保險人名稱','被保險人','要保人名稱','�
 const norm=s=>String(s??'').normalize('NFKC').trim();
 const key=r=>[r.company||'其他',r.type,r.number].map(norm).join('|');
 function mapping(headers){let out={};for(let [field,names] of Object.entries(fields)){let i=-1;for(let name of names){i=headers.findIndex(h=>norm(h)===name);if(i>=0)break}out[field]=i>=0?String(i):''}return out}
-function date(v){let s=norm(v),m=s.match(/^(\d{2,4})[\/.-年](\d{1,2})[\/.-月](\d{1,2})/);if(!m)return '';let y=+m[1],mo=+m[2],d=+m[3];if(y<1912)y+=1911;let x=new Date(Date.UTC(y,mo-1,d));return x.getUTCFullYear()===y&&x.getUTCMonth()===mo-1&&x.getUTCDate()===d?y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'):''}
-function plan(rows,map,existing){let accepted=[],skipped=[],seen=new Set(existing.filter(r=>r.number).map(key));rows.forEach((row,i)=>{let v=f=>map[f]===''?'':norm(row[+map[f]]),r={customer:v('customer'),number:v('number'),type:v('type'),end:date(v('end')),company:v('company')||'其他',plate:v('plate'),start:date(v('start')),premium:v('premium'),status:'待續保',note:'Excel 清冊匯入',created:new Date().toISOString(),pdfData:null,pdfName:null},reason=!r.customer?'缺少客戶名稱':!r.number?'缺少續保單號':!r.type?'缺少險種':!r.end?'到期日無效':seen.has(key(r))?'相同保單號碼、險種及公司':'';if(reason)skipped.push({row:i+2,reason});else{seen.add(key(r));accepted.push(r)}});return {accepted,skipped}}
+function date(v){
+ if(v instanceof Date&&!isNaN(v))return date([v.getFullYear(),v.getMonth()+1,v.getDate()].join('/'));
+ if(typeof v==='number'&&v>=20000&&v<=90000){const x=new Date(Date.UTC(1899,11,30)+Math.floor(v)*86400000);return date([x.getUTCFullYear(),x.getUTCMonth()+1,x.getUTCDate()].join('/'))}
+ const s=norm(v);let m=s.match(/^(\d{2,4})[\/.-年](\d{1,2})[\/.-月](\d{1,2})/);
+ if(!m)m=s.match(/^(\d{3,4})(\d{2})(\d{2})$/);
+ if(!m)return '';let y=+m[1],mo=+m[2],d=+m[3];if(y<1912)y+=1911;
+ const x=new Date(Date.UTC(y,mo-1,d));return y>=1912&&x.getUTCFullYear()===y&&x.getUTCMonth()===mo-1&&x.getUTCDate()===d?y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'):'' 
+}
+function plan(rows,map,existing,rowNumbers){
+ let accepted=[],skipped=[],seen=new Set((existing||[]).filter(r=>r.number).map(key));
+ rows.forEach((row,i)=>{
+  const v=f=>map[f]===''||map[f]==null?'':norm(row[+map[f]]);
+  const r={customer:v('customer'),number:v('number'),type:v('type'),end:date(v('end')),company:v('company')||'其他',plate:v('plate'),start:date(v('start')),premium:v('premium').replace(/[,元\s]/g,''),status:'待續保',note:'Excel 清冊匯入',created:new Date().toISOString(),pdfData:null,pdfName:null};
+  const reason=!r.customer?'缺少客戶名稱':!r.number?'缺少續保單號':!r.type?'缺少險種':!r.end?'到期日無效':seen.has(key(r))?'相同保單號碼、險種及公司':'';
+  const rowNumber=rowNumbers?.[i]??i+2;
+  if(reason)skipped.push({row:rowNumber,reason,number:r.number});else{seen.add(key(r));accepted.push(r)}
+ });return {accepted,skipped}
+}
 root.RenewalImport={mapping,date,plan};
 })(typeof window!=='undefined'?window:globalThis);
