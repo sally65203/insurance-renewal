@@ -3,7 +3,11 @@
 const SCOPE='https://www.googleapis.com/auth/calendar.events';
 let token='',expiry=0,busy=false;
 const store='insurance-v23-calendar-map';
-const eventId=id=>'renewal'+String(id).replace(/[^a-z0-9]/gi,'').toLowerCase().replace(/[w-z]/g,'a').replace(/[g-v]/g,'b').slice(0,80);
+const eventId=id=>{
+ const input=String(id);let a=2166136261,b=2246822519;
+ for(let i=0;i<input.length;i++){const c=input.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^(c+i),3266489917)}
+ return 'renewal'+(a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');
+};
 
 const read=()=>{try{return JSON.parse(localStorage.getItem(store)||'{}')}catch{return {}}};
 const persist=m=>localStorage.setItem(store,JSON.stringify(m));
