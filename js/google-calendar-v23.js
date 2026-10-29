@@ -3,6 +3,8 @@
 const SCOPE='https://www.googleapis.com/auth/calendar.events';
 let token='',expiry=0,busy=false;
 const store='insurance-v23-calendar-map';
+const eventId=id=>'renewal'+String(id).replace(/[^a-z0-9]/gi,'').toLowerCase().replace(/[w-z]/g,'a').replace(/[g-v]/g,'b').slice(0,80);
+
 const read=()=>{try{return JSON.parse(localStorage.getItem(store)||'{}')}catch{return {}}};
 const persist=m=>localStorage.setItem(store,JSON.stringify(m));
 const status=s=>{let e=document.getElementById('googleSyncStatus');if(e)e.textContent=s};
@@ -14,7 +16,7 @@ if(busy||!db)return;busy=true;let changed=0,failed=0;
 try{
 const all=await new Promise((ok,fail)=>{let q=db.transaction('policies','readonly').objectStore('policies').getAll();q.onsuccess=()=>ok(q.result);q.onerror=()=>fail(q.error)});
 const map=read(),active=new Map(all.filter(r=>!['已續保','不續保'].includes(r.status)&&oneMonthBefore(r.end)).map(r=>[String(r.id),r]));
-for(const [id,r] of active){try{const body=eventFor(r),fingerprint=JSON.stringify(body),entry=map[id];if(entry&&entry.fingerprint===fingerprint)continue;let result=entry?.eventId?await api('/calendars/primary/events/'+encodeURIComponent(entry.eventId),'PATCH',body):{missing:true};if(result.missing)result=await api('/calendars/primary/events','POST',body);if(!result.id)throw Error('Google 未回傳事件編號');map[id]={eventId:result.id,fingerprint};persist(map);changed++}catch(e){failed++}}
+for(const [id,r] of active){try{const body=eventFor(r),fingerprint=JSON.stringify(body),entry=map[id];if(entry&&entry.fingerprint===fingerprint)continue;let result=entry?.eventId?await api('/calendars/primary/events/'+encodeURIComponent(entry.eventId),'PATCH',body):{missing:true};if(result.missing){const eventBody={...body,id:eventId(id)};result=await api('/calendars/primary/events','POST',eventBody)}if(!result.id)throw Error('Google 未回傳事件編號');map[id]={eventId:result.id,fingerprint};persist(map);changed++}catch(e){failed++}}
 for(const [id,entry] of Object.entries(map)){if(active.has(id))continue;try{const result=await api('/calendars/primary/events/'+encodeURIComponent(entry.eventId),'DELETE');if(result.missing||result){delete map[id];}persist(map);changed++}catch(e){failed++}}
 status('同步完成：更新 '+changed+' 筆，失敗 '+failed+' 筆。'+(failed?'請重新連線或稍後重試。':''));
 }catch(e){status('同步失敗：'+e.message)}finally{busy=false}
