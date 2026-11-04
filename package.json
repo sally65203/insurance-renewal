@@ -1,0 +1,7 @@
+{
+  "name": "insurance-renewal",
+  "private": true,
+  "version": "2.3.0-rc.1",
+  "scripts": {"test": "node --test tests/*.test.cjs"},
+  "engines": {"node": ">=20"}
+}
